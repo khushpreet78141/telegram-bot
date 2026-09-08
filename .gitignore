@@ -1,0 +1,16 @@
+# Environment variables / secrets
+.env
+.env.*
+
+# Dependencies
+node_modules/
+
+# Logs
+*.log
+logs/
+
+# OS files
+.DS_Store
+
+# Optional: npm debug files
+npm-debug.log*
