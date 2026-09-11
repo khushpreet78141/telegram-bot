@@ -1,44 +1,26 @@
-console.log("Starting bot.js...");
 
-import "dotenv/config";
-import cron from 'node-cron';
-import { run } from "node-telegram-bot-api/node";
-import { Bot,Api } from "node-telegram-bot-api";
+import express from "express";
+import dotenv from "dotenv";
 
-const bot = new Bot(process.env.BOT_TOKEN);
-const api = new Api(process.env.BOT_TOKEN);
-console.log("Bot object created");
+dotenv.config();
 
-console.log("Token loaded:", !!process.env.BOT_TOKEN);
-bot.command("start", async (ctx) => {
-  await ctx.reply(
-    //`Hello ${ctx.from?.first_name || "there"}!\n` +
-    //`Your bot is working.\n\n` +
-    //`Your Chat ID: ${ctx.chat.id}`
-    `Bot is working .... `
-  );
-});
-const CHAT_ID = 6086818159;
+const app = express();
+const PORT = 3001;
 
-cron.schedule('0 */2 * * *', async() => {
-    try{
-         await api.sendMessage(
-            {
-                chat_id:      CHAT_ID,
- text: "I Love You Sweetheart 🥰"
-            }
+app.use(express.json());
 
-);
-    console.log("Message has been sent ");
-    }catch(err){
-        console.error("error is logging:",err);
-    }
+app.get("/", (req, res) => {
+    res.send("Telegram webhook server is running");
 });
 
-console.log("Starting Telegram polling...");
+app.post("/telegram/webhook", (req, res) => {
+    console.log("Telegram update received:");
+    console.log(JSON.stringify(req.body, null, 2));
 
-await run(bot);
+    res.sendStatus(200);
+});
 
-console.log("Bot is running!");
-
+app.listen(PORT, () => {
+    console.log(`Webhook server running on port ${PORT}`);
+});
 
