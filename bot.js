@@ -8,30 +8,30 @@ const app = express();
 app.use(express.json());
 
 const TOKEN = process.env.BOT_TOKEN;
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 const WEBHOOK_URL = process.env.WEBHOOK_URL;
 const GROUP_CHAT_ID = process.env.GROUP_CHAT_ID;
 
 const bot = new Bot(TOKEN);
 
+// Redis keys
 const PERSON_A = "relay:personA";
 const PERSON_B = "relay:personB";
+const PERSON_C = "relay:personC";
 
 
-// ==================================================
+// ============================================
 // START
-// ==================================================
+// ============================================
 
 bot.command("start", async (ctx) => {
-    await ctx.reply(
-        "Welcome to the relay bot."
-    );
+    await ctx.reply("Welcome to the relay bot.");
 });
 
 
-// ==================================================
-// REGISTER PERSON A
-// ==================================================
+// ============================================
+// REGISTER A
+// ============================================
 
 bot.command("registerA", async (ctx) => {
 
@@ -44,20 +44,18 @@ bot.command("registerA", async (ctx) => {
         name: ctx.from.first_name || "Person A"
     });
 
-    await ctx.reply(
-        "You are registered as Person A."
-    );
+    await ctx.reply("You are registered as Person A.");
 
-    console.log("Person A:", {
+    console.log("Person A registered:", {
         userId,
         chatId
     });
 });
 
 
-// ==================================================
-// REGISTER PERSON B
-// ==================================================
+// ============================================
+// REGISTER B
+// ============================================
 
 bot.command("registerB", async (ctx) => {
 
@@ -70,20 +68,42 @@ bot.command("registerB", async (ctx) => {
         name: ctx.from.first_name || "Person B"
     });
 
-    await ctx.reply(
-        "You are registered as Person B."
-    );
+    await ctx.reply("You are registered as Person B.");
 
-    console.log("Person B:", {
+    console.log("Person B registered:", {
         userId,
         chatId
     });
 });
 
 
-// ==================================================
-// ALL NORMAL MESSAGES
-// ==================================================
+// ============================================
+// REGISTER C
+// ============================================
+
+bot.command("registerC", async (ctx) => {
+
+    const userId = String(ctx.from.id);
+    const chatId = String(ctx.chat.id);
+
+    await redis.hSet(PERSON_C, {
+        userId,
+        chatId,
+        name: ctx.from.first_name || "Person C"
+    });
+
+    await ctx.reply("You are registered as Person C.");
+
+    console.log("Person C registered:", {
+        userId,
+        chatId
+    });
+});
+
+
+// ============================================
+// MESSAGE HANDLER
+// ============================================
 
 bot.on("message", async (ctx) => {
 
@@ -94,7 +114,7 @@ bot.on("message", async (ctx) => {
         return;
     }
 
-    // Ignore messages sent by bots
+    // Ignore bot messages
     if (message.from?.is_bot) {
         return;
     }
@@ -104,65 +124,60 @@ bot.on("message", async (ctx) => {
 
     const personA = await redis.hGetAll(PERSON_A);
     const personB = await redis.hGetAll(PERSON_B);
+    const personC = await redis.hGetAll(PERSON_C);
 
 
-    // ==================================================
-    // MESSAGE FROM GROUP
-    // ==================================================
+    // ========================================
+    // A/B → GROUP → C
+    // ========================================
 
     if (chatId === String(GROUP_CHAT_ID)) {
 
         let sender;
-        let receiver;
 
         if (senderId === personA.userId) {
 
             sender = personA;
-            receiver = personB;
 
         } else if (senderId === personB.userId) {
 
             sender = personB;
-            receiver = personA;
 
         } else {
 
+            // Unknown group member
+            return;
+        }
+
+
+        // C must be registered
+        if (!personC.chatId) {
+
             console.log(
-                "Unknown person sent message in group:",
-                senderId
+                "Person C is not registered."
             );
 
             return;
         }
 
 
-        if (!receiver.chatId) {
-
-            console.log(
-                "Receiver has not registered the bot."
-            );
-
-            return;
-        }
-
-
+        // Only text messages for now
         if (!message.text) {
             return;
         }
 
 
-        const formattedMessage =
+        // Send original sender's identity to C
+        const privateMessage =
             `${sender.name}: ${message.text}`;
 
-
-        // Send to other person's private chat
         await bot.api.sendMessage(
-            receiver.chatId,
-            formattedMessage
+            personC.chatId,
+            privateMessage
         );
 
 
-        // Delete original group message
+        // Delete original A/B message
         try {
 
             await bot.api.deleteMessage(
@@ -173,70 +188,59 @@ bot.on("message", async (ctx) => {
         } catch (error) {
 
             console.error(
-                "Failed to delete group message:",
+                "Could not delete group message:",
                 error.message
             );
 
         }
 
 
-        // Re-post in group
+        // Re-post as Person C
+        const groupMessage =
+            `Person C: ${message.text}`;
+
         await bot.api.sendMessage(
             GROUP_CHAT_ID,
-            formattedMessage
+            groupMessage
         );
 
         return;
     }
 
 
-    // ==================================================
-    // MESSAGE FROM PRIVATE CHAT
-    // ==================================================
+    // ========================================
+    // C → BOT DM → GROUP
+    // ========================================
 
     if (message.chat.type === "private") {
 
-        let sender;
-
-        if (senderId === personA.userId) {
-
-            sender = personA;
-
-        } else if (senderId === personB.userId) {
-
-            sender = personB;
-
-        } else {
-
-            await ctx.reply(
-                "You are not registered with this relay bot."
-            );
+        // Only C can send private messages
+        if (senderId !== personC.userId) {
 
             return;
         }
 
 
+        // Only text messages for now
         if (!message.text) {
             return;
         }
 
 
-        const formattedMessage =
-            `${sender.name}: ${message.text}`;
+        const groupMessage =
+            `Person C: ${message.text}`;
 
-
-        // Send message into group
         await bot.api.sendMessage(
             GROUP_CHAT_ID,
-            formattedMessage
+            groupMessage
         );
     }
 });
 
 
-// ==================================================
+// ============================================
 // WEBHOOK
-// ==================================================
+// ============================================
 
 app.post("/telegram/webhook", async (req, res) => {
 
@@ -258,22 +262,20 @@ app.post("/telegram/webhook", async (req, res) => {
 });
 
 
-// ==================================================
+// ============================================
 // HEALTH CHECK
-// ==================================================
+// ============================================
 
 app.get("/", (req, res) => {
 
-    res.send(
-        "Telegram relay bot is running."
-    );
+    res.send("Telegram relay bot is running.");
 
 });
 
 
-// ==================================================
+// ============================================
 // START SERVER
-// ==================================================
+// ============================================
 
 async function start() {
 
@@ -289,17 +291,15 @@ async function start() {
                 `Server running on port ${PORT}`
             );
 
-            const webhookUrl = WEBHOOK_URL 
-
             try {
 
                 await bot.api.setWebhook(
-                    webhookUrl
+                    WEBHOOK_URL
                 );
 
                 console.log(
                     "Webhook set:",
-                    webhookUrl 
+                    WEBHOOK_URL
                 );
 
             } catch (error) {
@@ -310,7 +310,6 @@ async function start() {
                 );
 
             }
-
         });
 
     } catch (error) {
