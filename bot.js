@@ -293,14 +293,12 @@ async function start() {
 
             try {
 
-                await bot.api.setWebhook(
-                    WEBHOOK_URL
-                );
+             const result = await bot.api.setWebhook(WEBHOOK_URL);
 
-                console.log(
-                    "Webhook set:",
-                    WEBHOOK_URL
-                );
+console.log("setWebhook result:", result);
+console.log("Webhook URL:", WEBHOOK_URL);
+
+               
 
             } catch (error) {
 
