@@ -1,349 +1,328 @@
 require("dotenv").config();
 
 const express = require("express");
-const TelegramBot = require("node-telegram-bot-api");
-
+const { Bot } = require("node-telegram-bot-api");
 const { redis, connectRedis } = require("./redis");
 
 const app = express();
-
 app.use(express.json());
 
 const TOKEN = process.env.BOT_TOKEN;
 const PORT = process.env.PORT || 3000;
 const WEBHOOK_URL = process.env.WEBHOOK_URL;
-
 const GROUP_CHAT_ID = process.env.GROUP_CHAT_ID;
 
-const bot = new TelegramBot(TOKEN);
-
-
-// --------------------------------------------------
-// Redis keys
-// --------------------------------------------------
+const bot = new Bot(TOKEN);
 
 const PERSON_A = "relay:personA";
 const PERSON_B = "relay:personB";
 
 
-// --------------------------------------------------
-// /start
-// --------------------------------------------------
+// ==================================================
+// START
+// ==================================================
 
-bot.onText(/^\/start$/, async (msg) => {
-
-    const userId = String(msg.from.id);
-    const chatId = String(msg.chat.id);
-
-    console.log("START:", {
-        userId,
-        chatId,
-        name: msg.from.first_name
-    });
-
-    await bot.sendMessage(
-        msg.chat.id,
-        "You are connected to the relay bot."
+bot.command("start", async (ctx) => {
+    await ctx.reply(
+        "Welcome to the relay bot."
     );
 });
 
 
-// --------------------------------------------------
-// Register Person A
-// --------------------------------------------------
+// ==================================================
+// REGISTER PERSON A
+// ==================================================
 
-bot.onText(/^\/registerA$/, async (msg) => {
+bot.command("registerA", async (ctx) => {
 
-    const userId = String(msg.from.id);
-    const chatId = String(msg.chat.id);
+    const userId = String(ctx.from.id);
+    const chatId = String(ctx.chat.id);
 
     await redis.hSet(PERSON_A, {
         userId,
         chatId,
-        name: msg.from.first_name || "Person A"
+        name: ctx.from.first_name || "Person A"
     });
 
-    await bot.sendMessage(
-        msg.chat.id,
-        "You have been registered as Person A."
+    await ctx.reply(
+        "You are registered as Person A."
     );
 
-    console.log("Person A registered:", userId, chatId);
+    console.log("Person A:", {
+        userId,
+        chatId
+    });
 });
 
 
-// --------------------------------------------------
-// Register Person B
-// --------------------------------------------------
+// ==================================================
+// REGISTER PERSON B
+// ==================================================
 
-bot.onText(/^\/registerB$/, async (msg) => {
+bot.command("registerB", async (ctx) => {
 
-    const userId = String(msg.from.id);
-    const chatId = String(msg.chat.id);
+    const userId = String(ctx.from.id);
+    const chatId = String(ctx.chat.id);
 
     await redis.hSet(PERSON_B, {
         userId,
         chatId,
-        name: msg.from.first_name || "Person B"
+        name: ctx.from.first_name || "Person B"
     });
 
-    await bot.sendMessage(
-        msg.chat.id,
-        "You have been registered as Person B."
+    await ctx.reply(
+        "You are registered as Person B."
     );
 
-    console.log("Person B registered:", userId, chatId);
+    console.log("Person B:", {
+        userId,
+        chatId
+    });
 });
 
 
-// --------------------------------------------------
-// GROUP MESSAGES
-// --------------------------------------------------
+// ==================================================
+// ALL NORMAL MESSAGES
+// ==================================================
 
-bot.on("message", async (msg) => {
+bot.on("message", async (ctx) => {
 
-    // Only process messages from our configured group
-    if (String(msg.chat.id) !== String(GROUP_CHAT_ID)) {
-        return;
-    }
-
-    // Ignore bot's own messages
-    if (msg.from?.is_bot) {
-        return;
-    }
+    const message = ctx.message;
 
     // Ignore commands
-    if (msg.text?.startsWith("/")) {
+    if (message.text?.startsWith("/")) {
         return;
     }
 
-    const senderId = String(msg.from.id);
+    // Ignore messages sent by bots
+    if (message.from?.is_bot) {
+        return;
+    }
+
+    const chatId = String(message.chat.id);
+    const senderId = String(message.from.id);
 
     const personA = await redis.hGetAll(PERSON_A);
     const personB = await redis.hGetAll(PERSON_B);
 
-    let sender;
-    let receiver;
 
-    // ----------------------------------------------
-    // Person A sent message
-    // ----------------------------------------------
+    // ==================================================
+    // MESSAGE FROM GROUP
+    // ==================================================
 
-    if (senderId === personA.userId) {
+    if (chatId === String(GROUP_CHAT_ID)) {
 
-        sender = personA;
-        receiver = personB;
+        let sender;
+        let receiver;
 
-    }
+        if (senderId === personA.userId) {
 
-    // ----------------------------------------------
-    // Person B sent message
-    // ----------------------------------------------
+            sender = personA;
+            receiver = personB;
 
-    else if (senderId === personB.userId) {
+        } else if (senderId === personB.userId) {
 
-        sender = personB;
-        receiver = personA;
+            sender = personB;
+            receiver = personA;
 
-    }
-
-    // ----------------------------------------------
-    // Unknown user
-    // ----------------------------------------------
-
-    else {
-
-        console.log("Unknown group member:", senderId);
-
-        return;
-    }
-
-
-    if (!receiver.chatId) {
-
-        console.log("Receiver personal chat not registered.");
-
-        return;
-    }
-
-
-    // ----------------------------------------------
-    // Get message text
-    // ----------------------------------------------
-
-    if (!msg.text) {
-        return;
-    }
-
-    const messageText = `${sender.name}: ${msg.text}`;
-
-
-    // ----------------------------------------------
-    // Send to receiver's personal chat
-    // ----------------------------------------------
-
-    await bot.sendMessage(
-        receiver.chatId,
-        messageText
-    );
-
-
-    // ----------------------------------------------
-    // Delete original group message
-    // ----------------------------------------------
-
-    try {
-
-        await bot.deleteMessage(
-            GROUP_CHAT_ID,
-            msg.message_id
-        );
-
-    } catch (error) {
-
-        console.error(
-            "Could not delete group message:",
-            error.message
-        );
-    }
-
-
-    // ----------------------------------------------
-    // Re-post in group
-    // ----------------------------------------------
-
-    await bot.sendMessage(
-        GROUP_CHAT_ID,
-        messageText
-    );
-
-});
-
-
-// --------------------------------------------------
-// PERSONAL CHAT → GROUP
-// --------------------------------------------------
-
-bot.on("message", async (msg) => {
-
-    // Ignore group messages
-    if (String(msg.chat.id) === String(GROUP_CHAT_ID)) {
-        return;
-    }
-
-    // Ignore commands
-    if (msg.text?.startsWith("/")) {
-        return;
-    }
-
-    // Only private chats
-    if (msg.chat.type !== "private") {
-        return;
-    }
-
-    const senderId = String(msg.from.id);
-
-    const personA = await redis.hGetAll(PERSON_A);
-    const personB = await redis.hGetAll(PERSON_B);
-
-    let sender;
-
-    if (senderId === personA.userId) {
-
-        sender = personA;
-
-    } else if (senderId === personB.userId) {
-
-        sender = personB;
-
-    } else {
-
-        await bot.sendMessage(
-            msg.chat.id,
-            "You are not registered with this relay."
-        );
-
-        return;
-    }
-
-
-    if (!msg.text) {
-        return;
-    }
-
-
-    const groupMessage =
-        `${sender.name}: ${msg.text}`;
-
-
-    // Send person's message into group
-    await bot.sendMessage(
-        GROUP_CHAT_ID,
-        groupMessage
-    );
-
-});
-
-
-// --------------------------------------------------
-// WEBHOOK
-// --------------------------------------------------
-
-app.post("/telegram/webhook", (req, res) => {
-
-    bot.processUpdate(req.body);
-
-    res.sendStatus(200);
-
-});
-
-
-// --------------------------------------------------
-// HEALTH CHECK
-// --------------------------------------------------
-
-app.get("/", (req, res) => {
-
-    res.send("Telegram relay bot is running.");
-
-});
-
-
-// --------------------------------------------------
-// START SERVER
-// --------------------------------------------------
-
-async function start() {
-
-    await connectRedis();
-
-    app.listen(PORT, async () => {
-
-        console.log(
-            `Server running on port ${PORT}`
-        );
-
-        const webhook = `${WEBHOOK_URL}/telegram/webhook`;
-
-        try {
-
-            await bot.setWebHook(webhook);
+        } else {
 
             console.log(
-                "Webhook set:",
-                webhook
+                "Unknown person sent message in group:",
+                senderId
+            );
+
+            return;
+        }
+
+
+        if (!receiver.chatId) {
+
+            console.log(
+                "Receiver has not registered the bot."
+            );
+
+            return;
+        }
+
+
+        if (!message.text) {
+            return;
+        }
+
+
+        const formattedMessage =
+            `${sender.name}: ${message.text}`;
+
+
+        // Send to other person's private chat
+        await bot.api.sendMessage(
+            receiver.chatId,
+            formattedMessage
+        );
+
+
+        // Delete original group message
+        try {
+
+            await bot.api.deleteMessage(
+                GROUP_CHAT_ID,
+                message.message_id
             );
 
         } catch (error) {
 
             console.error(
-                "Webhook error:",
+                "Failed to delete group message:",
                 error.message
             );
+
         }
-    });
-    
+
+
+        // Re-post in group
+        await bot.api.sendMessage(
+            GROUP_CHAT_ID,
+            formattedMessage
+        );
+
+        return;
+    }
+
+
+    // ==================================================
+    // MESSAGE FROM PRIVATE CHAT
+    // ==================================================
+
+    if (message.chat.type === "private") {
+
+        let sender;
+
+        if (senderId === personA.userId) {
+
+            sender = personA;
+
+        } else if (senderId === personB.userId) {
+
+            sender = personB;
+
+        } else {
+
+            await ctx.reply(
+                "You are not registered with this relay bot."
+            );
+
+            return;
+        }
+
+
+        if (!message.text) {
+            return;
+        }
+
+
+        const formattedMessage =
+            `${sender.name}: ${message.text}`;
+
+
+        // Send message into group
+        await bot.api.sendMessage(
+            GROUP_CHAT_ID,
+            formattedMessage
+        );
+    }
+});
+
+
+// ==================================================
+// WEBHOOK
+// ==================================================
+
+app.post("/telegram/webhook", async (req, res) => {
+
+    try {
+
+        await bot.handleUpdate(req.body);
+
+        res.sendStatus(200);
+
+    } catch (error) {
+
+        console.error(
+            "Webhook processing error:",
+            error
+        );
+
+        res.sendStatus(500);
+    }
+});
+
+
+// ==================================================
+// HEALTH CHECK
+// ==================================================
+
+app.get("/", (req, res) => {
+
+    res.send(
+        "Telegram relay bot is running."
+    );
+
+});
+
+
+// ==================================================
+// START SERVER
+// ==================================================
+
+async function start() {
+
+    try {
+
+        await connectRedis();
+
+        console.log("Redis connected.");
+
+        app.listen(PORT, async () => {
+
+            console.log(
+                `Server running on port ${PORT}`
+            );
+
+            const webhookUrl =
+                `${WEBHOOK_URL}/telegram/webhook`;
+
+            try {
+
+                await bot.api.setWebhook(
+                    webhookUrl
+                );
+
+                console.log(
+                    "Webhook set:",
+                    webhookUrl
+                );
+
+            } catch (error) {
+
+                console.error(
+                    "Failed to set webhook:",
+                    error.message
+                );
+
+            }
+
+        });
+
+    } catch (error) {
+
+        console.error(
+            "Failed to start application:",
+            error
+        );
+
+        process.exit(1);
+    }
 }
 
 start();
-
