@@ -340,11 +340,9 @@ async function start() {
                 "Webhook error:",
                 error.message
             );
-
         }
-
     });
-
+    
 }
 
 start();
