@@ -106,7 +106,7 @@ bot.command("registerC", async (ctx) => {
 // ============================================
 
 bot.on("message", async (ctx) => {
-
+    console.log("MESSAGE RECEIVED:", ctx.message);
     const message = ctx.message;
 
     // Ignore commands
