@@ -289,8 +289,7 @@ async function start() {
                 `Server running on port ${PORT}`
             );
 
-            const webhookUrl =
-                `${WEBHOOK_URL}/telegram/webhook`;
+            const webhookUrl = WEBHOOK_URL 
 
             try {
 
@@ -300,7 +299,7 @@ async function start() {
 
                 console.log(
                     "Webhook set:",
-                    webhookUrl
+                    webhookUrl 
                 );
 
             } catch (error) {
