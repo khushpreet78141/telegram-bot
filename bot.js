@@ -107,6 +107,8 @@ bot.command("registerC", async (ctx) => {
 
 bot.on("message", async (ctx) => {
     console.log("MESSAGE RECEIVED:", ctx.message);
+    console.log("CHAT ID:", ctx.chat.id);
+console.log("CHAT TYPE:", ctx.chat.type);
     const message = ctx.message;
 
     // Ignore commands
