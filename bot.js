@@ -14,7 +14,7 @@ const WEBHOOK_URL = process.env.WEBHOOK_URL;
 const GROUP_CHAT_ID = process.env.GROUP_CHAT_ID;
 
 const bot = new Bot(TOKEN);
-const api = new Bot(TOKEN);
+const api = new Api(TOKEN);
 // Redis keys
 const PERSON_A = "relay:personA";
 const PERSON_B = "relay:personB";
@@ -296,7 +296,7 @@ async function start() {
 
             try {
 
-             const result = await bot.api.setWebhook(WEBHOOK_URL);
+             const result = await api.setWebhook(WEBHOOK_URL);
 
 console.log("setWebhook result:", result);
 console.log("Webhook URL:", WEBHOOK_URL);
