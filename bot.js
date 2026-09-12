@@ -296,7 +296,7 @@ async function start() {
 
             try {
 
-             const result = await api.setWebhook(WEBHOOK_URL);
+             const result = await bot.api.setWebhook(WEBHOOK_URL);
 
 console.log("setWebhook result:", result);
 console.log("Webhook URL:", WEBHOOK_URL);
