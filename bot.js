@@ -203,10 +203,10 @@ await api.sendMessage({
         const groupMessage =
             `Person C: ${message.text}`;
 
-        await api.sendMessage(
-            GROUP_CHAT_ID,
-            groupMessage
-        );
+        await api.sendMessage({
+            chat_id : GROUP_CHAT_ID,
+            text:groupMessage
+    });
 
         return;
     }
@@ -234,10 +234,10 @@ await api.sendMessage({
         const groupMessage =
             `Person C: ${message.text}`;
 
-        await api.sendMessage(
-            GROUP_CHAT_ID,
-            groupMessage
-        );
+        await api.sendMessage({
+            chat_id:GROUP_CHAT_ID,
+            text:groupMessage
+    });
     }
 });
 
