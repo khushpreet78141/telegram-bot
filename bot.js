@@ -171,22 +171,23 @@ console.log("CHAT TYPE:", ctx.chat.type);
 
 
         // Send original sender's identity to C
-        const privateMessage =
-            `${sender.name}: ${message.text}`;
+       // Send original sender's identity to C
+const privateMessage =
+    `${sender.name}: ${message.text}`;
 
-        await api.sendMessage(
-            personC.chatId,
-            privateMessage
-        );
+await api.sendMessage({
+    chat_id: personC.chatId,
+    text: privateMessage
+});
 
 
         // Delete original A/B message
         try {
 
-            await api.deleteMessage(
-                GROUP_CHAT_ID,
-                message.message_id
-            );
+            await api.deleteMessage({
+        chat_id: GROUP_CHAT_ID,
+        message_id: message.message_id
+    });
 
         } catch (error) {
 
