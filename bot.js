@@ -1,7 +1,8 @@
 require("dotenv").config();
 
 const express = require("express");
-const { Bot } = require("node-telegram-bot-api");
+const { Bot,Api } = require("node-telegram-bot-api");
+
 const { redis, connectRedis } = require("./redis");
 
 const app = express();
@@ -13,7 +14,7 @@ const WEBHOOK_URL = process.env.WEBHOOK_URL;
 const GROUP_CHAT_ID = process.env.GROUP_CHAT_ID;
 
 const bot = new Bot(TOKEN);
-
+const api = new Bot(TOKEN);
 // Redis keys
 const PERSON_A = "relay:personA";
 const PERSON_B = "relay:personB";
@@ -173,7 +174,7 @@ console.log("CHAT TYPE:", ctx.chat.type);
         const privateMessage =
             `${sender.name}: ${message.text}`;
 
-        await bot.api.sendMessage(
+        await api.sendMessage(
             personC.chatId,
             privateMessage
         );
@@ -182,7 +183,7 @@ console.log("CHAT TYPE:", ctx.chat.type);
         // Delete original A/B message
         try {
 
-            await bot.api.deleteMessage(
+            await api.deleteMessage(
                 GROUP_CHAT_ID,
                 message.message_id
             );
@@ -201,7 +202,7 @@ console.log("CHAT TYPE:", ctx.chat.type);
         const groupMessage =
             `Person C: ${message.text}`;
 
-        await bot.api.sendMessage(
+        await api.sendMessage(
             GROUP_CHAT_ID,
             groupMessage
         );
@@ -232,7 +233,7 @@ console.log("CHAT TYPE:", ctx.chat.type);
         const groupMessage =
             `Person C: ${message.text}`;
 
-        await bot.api.sendMessage(
+        await api.sendMessage(
             GROUP_CHAT_ID,
             groupMessage
         );
@@ -295,7 +296,7 @@ async function start() {
 
             try {
 
-             const result = await bot.api.setWebhook(WEBHOOK_URL);
+             const result = await api.setWebhook(WEBHOOK_URL);
 
 console.log("setWebhook result:", result);
 console.log("Webhook URL:", WEBHOOK_URL);
